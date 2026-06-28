@@ -56,38 +56,46 @@ def split_data(X, y):
     return X_train, X_test, y_train, y_test
 
 
+
+
 def scale_data(X_train, X_test):
     """
     Стандартизирует числовые признаки.
-    ГАРАНТИРОВАННО убирает все NaN с помощью SimpleImputer.
+    Корректно обрабатывает булевы колонки после One-Hot Encoding.
     """
     print("\n--- Стандартизация признаков ---")
     
-    # Гарантируем, что это numpy array (а не DataFrame)
-    if hasattr(X_train, 'values'):
-        X_train = X_train.values
-    if hasattr(X_test, 'values'):
-        X_test = X_test.values
+    # 1. Проверяем на NaN с помощью pandas (np.isnan падает на булевых колонках)
+    train_nan = X_train.isna().sum().sum() if hasattr(X_train, 'isna') else 0
+    test_nan = X_test.isna().sum().sum() if hasattr(X_test, 'isna') else 0
     
-    # Проверяем на NaN
-    train_nan = np.isnan(X_train).sum()
-    test_nan = np.isnan(X_test).sum()
     print(f"[i] Пропусков в X_train: {train_nan}, в X_test: {test_nan}")
     
-    # Если есть NaN - заполняем медианой
+    # 2. Если вдруг есть NaN - заполняем самым частым значением
     if train_nan > 0 or test_nan > 0:
         print("[!] Обнаружены пропуски. Применяем SimpleImputer...")
-        imputer = SimpleImputer(strategy='median')
+        imputer = SimpleImputer(strategy='most_frequent')
         X_train = imputer.fit_transform(X_train)
         X_test = imputer.transform(X_test)
-        print(f"[OK] Пропуски заполнены медианой.")
-    
-    # Масштабирование
+    else:
+        # Если пропусков нет, просто забираем значения из DataFrame
+        if hasattr(X_train, 'values'):
+            X_train = X_train.values
+        if hasattr(X_test, 'values'):
+            X_test = X_test.values
+
+    # 3. КРИТИЧЕСКИ ВАЖНО: Приводим всё к float. 
+    # После get_dummies у нас могут быть bool (True/False), 
+    # а StandardScaler требует строго числовые типы (float/int).
+    X_train = np.asarray(X_train, dtype=float)
+    X_test = np.asarray(X_test, dtype=float)
+
+    # 4. Масштабирование
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
-    # Финальная проверка
+    # 5. Финальная проверка (теперь X_train_scaled - это точно массив float, np.isnan сработает)
     assert not np.isnan(X_train_scaled).any(), "В X_train_scaled есть NaN!"
     assert not np.isnan(X_test_scaled).any(), "В X_test_scaled есть NaN!"
     
