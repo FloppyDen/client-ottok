@@ -30,7 +30,7 @@ from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, 
     f1_score, roc_auc_score, confusion_matrix, classification_report
 )
-
+from sklearn.impute import SimpleImputer
 from config import TEST_SIZE, RANDOM_STATE, CV_FOLDS, MAX_ITER
 
 
@@ -58,15 +58,42 @@ def split_data(X, y):
 
 def scale_data(X_train, X_test):
     """
-    Стандартизирует числовые признаки (важно для SVM, KNN, LogReg).
+    Стандартизирует числовые признаки.
+    ГАРАНТИРОВАННО убирает все NaN с помощью SimpleImputer.
     """
     print("\n--- Стандартизация признаков ---")
+    
+    # Гарантируем, что это numpy array (а не DataFrame)
+    if hasattr(X_train, 'values'):
+        X_train = X_train.values
+    if hasattr(X_test, 'values'):
+        X_test = X_test.values
+    
+    # Проверяем на NaN
+    train_nan = np.isnan(X_train).sum()
+    test_nan = np.isnan(X_test).sum()
+    print(f"[i] Пропусков в X_train: {train_nan}, в X_test: {test_nan}")
+    
+    # Если есть NaN - заполняем медианой
+    if train_nan > 0 or test_nan > 0:
+        print("[!] Обнаружены пропуски. Применяем SimpleImputer...")
+        imputer = SimpleImputer(strategy='median')
+        X_train = imputer.fit_transform(X_train)
+        X_test = imputer.transform(X_test)
+        print(f"[OK] Пропуски заполнены медианой.")
+    
+    # Масштабирование
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+    
+    # Финальная проверка
+    assert not np.isnan(X_train_scaled).any(), "В X_train_scaled есть NaN!"
+    assert not np.isnan(X_test_scaled).any(), "В X_test_scaled есть NaN!"
+    
     print("[OK] Применён StandardScaler.")
+    print(f"[OK] Итоговая форма X_train_scaled: {X_train_scaled.shape}")
     return X_train_scaled, X_test_scaled, scaler
-
 
 def get_base_models() -> dict:
     """
